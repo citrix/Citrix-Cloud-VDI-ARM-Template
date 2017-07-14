@@ -1,0 +1,60 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+  "artifactsBaseUrl" :{
+    "value": "https://azurestorage.blob.core.windows.net/armtemplates-stageartifacts"
+    },
+    "adminUsername": {
+      "value": "ctxadmin"
+    },
+    "adminPassword": {
+      "value": "Citrix123456!"
+    },
+    "machineSize": {
+      "value": "Standard_DS2_v2"
+    },
+   "azureGov": {  
+	  "value": "false"
+    },    	
+	"vnetName":{
+	  "value": "VirtualNetwork"
+	},
+	"subnetName":{
+	  "value": "Subnet"
+	},
+	"domainName":{
+	  "value": "xenapp.local"
+	},
+	"domainUsername":{
+	  "value": "ctxadmin"
+	},
+	"domainPassword":{
+	  "value": "Citrix123456!"
+	},	
+	"domainControllerIp":{
+	  "value": "10.0.0.8"
+	},
+	"cloudConnectorFQDN":{
+	  "value": "cloudconnector.xenapp.local"
+	},
+	"createClientVDI":{
+	  "value": "true"
+	},
+	"clientVDIPrivateIp":{
+	  "value": "10.0.0.30"
+	},
+	"ClientVDIInstallerUri":{
+	  "value": "https://azurestorage.blob.core.windows.net/armtemplates-stageartifacts/Resources/VDISetup/VDAWorkstationSetup_7.9.exe"
+	},
+	"createServerVDI":{
+	  "value": "true"
+	},
+	"serverVDIPrivateIp":{
+	  "value": "10.0.0.31"
+	},
+	"serverVDIInstallerUri":{
+	  "value": "https://azurestorage.blob.core.windows.net/armtemplates-stageartifacts/Resources/VDISetup/VDAServerSetup_7.9.exe"
+	}
+  }
+}

@@ -1,0 +1,496 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+
+  "parameters": {
+    "vhdStorageType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_GRS",
+        "Standard_RAGRS",
+        "Premium_LRS"
+      ],
+      "metadata": {
+        "description": "Specifies the type of storage account, if being created."
+      }
+    },
+    "vhdStorageNewOrExisting": {
+      "type": "string",
+      "defaultValue": "new",
+      "allowedValues": [
+        "new",
+        "existing"
+      ],
+      "metadata": {
+        "description": "Specifies whether the storage account should be created or already exists."
+      }
+    },   
+    "machineSize": {
+      "type": "string",
+      "defaultValue": "Standard_DS2_v2",
+      "metadata": {
+        "description": "Specifies the size of the virtual machines (6)."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the name of the administrator for machines, Active Directory domain, NetScaler and XenApp. Exclusion list: 'admin','administrator'. Must be no more than 9 alphanumeric characters."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Specifies the password of the administrator for machines, Active Directory domain, NetScaler and XenApp."
+      }
+    },
+	"vnetName": {
+      "type": "string",      
+      "metadata": {
+        "description": "VirtualNetwork Name in which the VDI will be Installed."
+      }
+    },
+	"subnetName": {
+      "type": "string",      
+      "metadata": {
+        "description": "Subnet Name under which the VDI will be installed."
+      }
+    },
+
+    "domainName": {
+      "type": "string",
+      "defaultValue": "xenapp.local",
+      "metadata": {
+        "description": "Specifies the name of the newly created Active Directory domain."
+      }
+    },
+	"domainUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the name Existing domain Username that will be used to Join Domain."
+      }
+    },
+    "domainPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Specifies the Existing domain Password for Domain User that will be used to Join Domain."
+      }
+    },
+	"domainControllerIp": {
+      "type": "string",      
+      "metadata": {
+        "description": "Private IP of Domain Controller, This is used to Join and Register VDI to DomainController"
+      }
+    },
+    "artifactsBaseUrl": {
+      "type": "string",
+      "metadata": {
+        "artifactsBaseUrl": "",
+        "description": "Specifies the base location of the child templates and desired state configuration scripts."
+      },
+      "defaultValue": "https://raw.githubusercontent.com/simongdavies/cuddly-octo-fortnight/master"
+    },
+    "artifactsBaseUrlSasToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Specifies the shared access signature token which provides access to the base artifacts location."
+      },
+      "defaultValue": ""
+    },
+    "azureGov": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the shared access signature token which provides access to the base artifacts location."
+      },
+      "defaultValue": "false",
+      "allowedValues": [
+        "true",
+        "false"
+      ]
+    },
+	"cloudConnectorFQDN" :{
+	"type": "string",
+      "metadata": {
+        "description": "Specify FQDN of CloudConnector VM for Example: cloudconnectorvm.domain.com"
+      }
+	},
+    "createMasterImage": {
+      "type": "string",
+      "metadata": {
+        "description": "Specify whether VDI should be provisioned or Not."
+      },
+      "defaultValue": "false",
+      "allowedValues": [
+        "true",
+        "false"
+      ]
+    },
+    "createClientVDI": {
+      "type": "string",
+      "metadata": {
+        "description": "Select if Default Client VDI should be installed or any custom version of VDI needs to be installed."
+      },
+      "defaultValue": "true",
+      "allowedValues": [
+        "true",
+        "false"
+      ]
+    },
+	"clientVDIPrivateIp" :{
+      "type": "string",
+      "metadata": {
+        "description": "A Unused Private IP Address to assign to VDI Server VM"
+      }
+	},
+    "ClientVDIInstallerUri": {
+      "type": "string",
+      "metadata": {
+        "description": "If customClientVDI is selected, Enter the path of VDI Installer or else leave it blank."
+      }
+    },
+    "createServerVDI": {
+      "type": "string",
+      "metadata": {
+        "description": "Select if Default Server VDI should be installed or any custom version of VDI needs to be installed."
+      },
+      "defaultValue": "true",
+      "allowedValues": [
+        "true",
+        "false"
+      ]
+    },
+	"serverVDIPrivateIp" :{
+      "type": "string",
+      "metadata": {
+        "description": "A Unused Private IP Address to assign to VDI Server VM"
+      }
+	},
+    "serverVDIInstallerUri": {      
+      "type": "string",
+      "metadata": {
+        "description": "If customServerVDI is selected, Enter the path of VDI Installer or else leave it blank."
+      }
+    }
+  },
+    
+  "variables": {	
+	  "imageType" : "Gallery",
+	  "vhdStorageAccount" : "[toLower(substring(concat('vdistorage',uniqueString(subscription().subscriptionId,resourceGroup().id)), 0, 13))]",
+      "vhdStorageGroup" : "[resourceGroup().name]",
+	  "location": "[resourceGroup().location]",  
+      "artifactsLocation": "[concat(parameters('artifactsBaseUrl'),'/')]",
+      "artifactsLocationSasToken": "[parameters('artifactsBaseUrlSasToken')]",      
+      "userImageContainerName": "vdiimages",     
+      "subnetId": "[concat(resourceId('Microsoft.Network/virtualNetworks',parameters('vnetName')), '/subnets/', parameters('subnetName'))]",
+      "creatingStorageAccountUrl": "[concat(variables('artifactsLocation'), 'storageAccount-', parameters('vhdStorageNewOrExisting'), '.json')]",     
+      "vdiServerSettings": {
+        "templateUri": "[concat(variables('artifactsLocation'), 'CreatingVDI', variables('imageType'), '.json')]",                
+		"extensionUri": "[concat(variables('artifactsLocation'), 'CreatingVDIServerGalleryExtension.json')]",
+        "publisher": "MicrosoftWindowsServer",
+        "offer": "WindowsServer",
+        "sku": "2016-Datacenter",
+        "vdiPrefix": "XD-VDIServer",
+        "machineSize": "[parameters('machineSize')]",
+		"machineName": "XD-VDIServer",
+        "location": "[variables('location')]",
+        "vdaCount": 1,
+        "privateIp": "[parameters('serverVDIPrivateIp')]",  
+		"configurationFileUrl": "[concat(variables('artifactsLocation'), 'DSC/VDIServerIndependent.ps1.zip')]",
+        "configurationFunction": "VDIServerIndependent.ps1\\VDIServerIndependent",
+		"prepareConfigurationFileUrl": "[concat(variables('artifactsLocation'), 'DSC/PrepareVDI.ps1.zip')]",
+        "prepareConfigurationFunction": "VDI.ps1\\PrepareVDI",
+        "inboundRules": [ ],
+        "chocolateyPackages": [ ],
+        "publishedApplications": [ ]
+      },
+      "vdiSettings": {
+        "templateUri": "[concat(variables('artifactsLocation'), 'CreatingVDI', variables('imageType'), '.json')]",                
+		"extensionUri": "[concat(variables('artifactsLocation'), 'CreatingVDIGalleryExtension.json')]",
+        "publisher": "MicrosoftWindowsServer",
+        "offer": "Windows-HUB",
+        "sku": "Windows-10-HUB",
+        "vdiPrefix": "XD-VDI",
+        "machineSize": "[parameters('machineSize')]",
+		"machineName": "XD-VDI",
+        "location": "[variables('location')]",
+        "vdaCount": 1,
+        "privateIp": "[parameters('clientVDIPrivateIp')]",
+		"configurationFileUrl": "[concat(variables('artifactsLocation'), 'DSC/VDI.ps1.zip')]",
+        "configurationFunction": "VDI.ps1\\VDI",
+		"prepareConfigurationFileUrl": "[concat(variables('artifactsLocation'), 'DSC/PrepareVDI.ps1.zip')]",
+        "prepareConfigurationFunction": "VDI.ps1\\PrepareVDI",
+        "inboundRules": [ ],
+        "chocolateyPackages": [ ],
+        "publishedApplications": [ ]
+      },
+	  "availabilitySetName": "AvailabilitySet",
+	  "availabilitySetId": "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]",
+
+    },
+
+  "resources": [	
+    {
+      "name": "CreatingStorageAccount",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [ ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('creatingStorageAccountUrl')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "vhdStorageAccount": {
+            "value": "[variables('vhdStorageAccount')]"
+          },
+          "vhdStorageType": {
+            "value": "[parameters('vhdStorageType')]"
+          },
+          "vhdStorageGroup": {
+            "value": "[variables('vhdStorageGroup')]"
+          }
+        }
+      }
+    },
+	{
+      "apiVersion": "2015-06-15",
+      "name": "[variables('availabilitySetName')]",
+      "type": "Microsoft.Compute/availabilitySets",
+      "location": "[variables('location')]",
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "AvailabilitySet"
+      },
+      "properties": {
+        "platformFaultDomainCount": 2
+      }
+    }, 
+	{
+	  "condition": "[equals(parameters('createClientVDI'),'true')]",
+      "name": "CreatingVDI",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "Microsoft.Resources/deployments/CreatingStorageAccount",
+		"Microsoft.Compute/availabilitySets/availabilitySet"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('vdiSettings').templateUri]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "vhdStorageAccount": {
+            "value": "[variables('vhdStorageAccount')]"
+          },
+          "machineSize": {
+            "value": "[variables('vdiSettings').machineSize]"
+          },
+          "machineName": {
+            "value": "[variables('vdiSettings').machineName]"
+          },        
+		  "availabilitySetId": {
+            "value": "[variables('availabilitySetId')]"
+          },
+          "subnetId": {
+            "value": "[variables('subnetId')]"
+          },                 
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          },         
+		  "privateIp": {
+            "value": "[variables('vdiSettings').privateIp]"
+          },	  
+          "azureGov": {
+            "value": "[parameters('azureGov')]"
+          }
+        }
+      }
+    },
+	{
+	  "condition": "[equals(parameters('createClientVDI'),'true')]",
+      "name": "CreatingVdiExtensions",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "Microsoft.Resources/deployments/CreatingVDI"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('vdiSettings').extensionUri]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {          
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "machineName": {
+            "value": "[variables('vdiSettings').vdiPrefix]"
+          },
+          "domainName": {
+            "value": "[parameters('domainName')]"
+          },
+		  "domainUsername": {
+            "value": "[parameters('domainUsername')]"
+          },
+		  "domainPassword": {
+            "value": "[parameters('domainPassword')]"
+          },
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
+          },
+          "deliveryControllerFQDN": {
+            "value": "[parameters('cloudConnectorFQDN')]"
+          },
+          "domainControllerIp": {
+            "value": "[parameters('domainControllerIp')]"
+          },
+          "artifactsLocationSasToken": {
+            "value": "[variables('artifactsLocationSasToken')]"
+          },
+		  "artifactsLocationUri": {
+            "value": "[parameters('artifactsBaseUrl')]"
+          },
+		  "InstallerPath" : {
+		    "value": "[parameters('ClientVDIInstallerUri')]"
+		  },
+		  "CreateMasterImage" : {
+		    "value": "[parameters('createMasterImage')]"
+		  }
+        }
+      }
+    },
+	{
+	  "condition": "[equals(parameters('createServerVDI'),'true')]",
+      "name": "CreatingVDIServer",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "Microsoft.Resources/deployments/CreatingStorageAccount",
+		"Microsoft.Compute/availabilitySets/availabilitySet"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('vdiServerSettings').templateUri]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "vhdStorageAccount": {
+            "value": "[variables('vhdStorageAccount')]"
+          },
+          "machineSize": {
+            "value": "[variables('vdiServerSettings').machineSize]"
+          },
+          "machineName": {
+            "value": "[variables('vdiServerSettings').machineName]"
+          },
+		  "availabilitySetId": {
+            "value": "[variables('availabilitySetId')]"
+          },
+          "subnetId": {
+            "value": "[variables('subnetId')]"
+          },          
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
+          },    		  
+		  "privateIp": {
+            "value": "[variables('vdiServerSettings').privateIp]"
+          },
+          "azureGov": {
+            "value": "[parameters('azureGov')]"
+		  },
+		  "publisher" : {
+              "value": "[variables('vdiServerSettings').publisher]"
+          },
+		  "offer" : {
+              "value": "[variables('vdiServerSettings').offer]"
+          },
+		  "sku" : {
+              "value": "[variables('vdiServerSettings').sku]"
+        }
+       }
+      }
+    },
+	{
+      "condition": "[equals(parameters('createServerVDI'),'true')]",
+      "name": "CreatingVdiServerExtensions",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "Microsoft.Resources/deployments/CreatingVDIServer"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('vdiServerSettings').extensionUri]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+		  "machineName": {
+            "value": "[variables('vdiServerSettings').machineName]"
+          },
+          "domainName": {
+            "value": "[parameters('domainName')]"
+          },
+		  "domainUsername": {
+			"value": "[parameters('domainUsername')]"
+		  },
+		  "domainPassword": {
+			"value": "[parameters('domainPassword')]"
+		  },
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
+          },
+          "deliveryControllerFQDN": {
+            "value": "[parameters('cloudConnectorFQDN')]"
+          },
+          "domainControllerIp": {
+            "value": "[parameters('domainControllerIp')]"
+          },
+          "artifactsLocationSasToken": {
+            "value": "[variables('artifactsLocationSasToken')]"
+          },          
+          "configurationFileUrl": {
+            "value": "[variables('vdiServerSettings').configurationFileUrl]"
+          },
+          "configurationFunction": {
+            "value": "[variables('vdiServerSettings').configurationFunction]"
+          },
+          "InstallerPath": {
+            "value": "[parameters('serverVDIInstallerUri')]"
+          },
+          "CreateMasterImage": {
+            "value": "[parameters('createMasterImage')]"
+          }
+        }
+      }
+    }    
+  ],
+  
+  "outputs": {   
+  }
+}

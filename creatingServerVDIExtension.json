@@ -1,0 +1,131 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+  "parameters": {
+    "domainName": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the name of the Active Directory domain."
+      }
+    },
+	"domainUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the name Existing domain Username that will be used to Join Domain."
+      }
+    },
+    "domainPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Specifies the Existing domain Password for Domain User that will be used to Join Domain."
+      }
+    },
+    "domainControllerIp": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the IP of a domain controller on the virtual network."
+      }
+    },
+    "domainControllerFQDN": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the FQDN of a domain controller on the virtual network."
+      }
+    },        
+    "deliveryControllerFQDN": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the name of the XenApp delivery controller on the virtual network."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the name of the administrator for machines, Active Directory domain, NetScaler and XenApp. Exclusion list: 'admin','administrator'. Must be no more than 9 alphanumeric characters."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Specifies the password of the administrator for machines, Active Directory domain, NetScaler and XenApp."
+      }
+    },   
+    "artifactsLocationSasToken": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the shared access signature token which provides access to the base artifacts location."
+      }
+    },    
+    "configurationFileUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the URI of the DSC configuration script."
+      }
+    },
+    "configurationFunction": {
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the function to be executed in the DSC configuration script."
+      }
+    },
+	"InstallerPath": {	  
+      "type": "string",
+      "metadata": {
+        "description": "Specifies the name of the XenApp delivery controller on the virtual network."
+      }
+    },
+	"CreateMasterImage": {	  
+      "type": "string",
+      "metadata": {
+        "description": "Specifies If the Master Image has to be created"
+      }
+    }
+  },
+  "variables": {
+
+  },
+    "resources": [
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('machineName'),'/configure')]",
+            "apiVersion": "2015-06-15",
+            "tags": {
+                "displayName": "VdaConfiguration"
+            },
+            "location": "[parameters('location')]",
+            "properties": {
+                "publisher": "Microsoft.Powershell",
+                "type": "DSC",
+                "autoUpgradeMinorVersion": true,
+                "typeHandlerVersion": "2.19",
+                "settings": {
+                    "modulesUrl": "[parameters('configurationFileUrl')]",
+                    "sasToken": "[parameters('artifactsLocationSasToken')]",
+                    "configurationFunction": "[parameters('configurationFunction')]",
+                    "Properties": {
+                        "DomainName": "[parameters('domainName')]",
+                        "AdminCreds": {
+                            "UserName": "[parameters('adminUsername')]",
+                            "Password": "PrivateSettingsRef:adminPassword"
+                        },
+						"DomainCreds": {
+                            "UserName": "[parameters('domainUsername')]",
+                            "Password": "PrivateSettingsRef:domainPassword"
+                        },
+                        "DomainController": "[parameters('domainControllerFQDN')]",
+                        "DomainControllerIp": "[parameters('domainControllerIp')]",
+                        "DeliveryController": "[parameters('deliveryControllerFQDN')]",
+						"setupLocation": "[parameters('InstallerPath')]",
+						"CreateMasterImage":"[parameters('CreateMasterImage')]"
+                    }
+                },
+                "protectedSettings": {
+                    "Items": {
+                        "adminPassword": "[parameters('adminPassword')]",
+						"DomainPassword": "[parameters('domainPassword')]"
+                    }
+                }
+            }
+        }
+    ]
+}
