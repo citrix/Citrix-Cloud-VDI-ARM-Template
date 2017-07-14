@@ -46,7 +46,6 @@ VDI enables customers to streamline management and costs by consolidating and ce
 | artifactsBaseUrlSasToken	|	Specifies the shared access signature token which provides access to the base artifacts location. |
 | azureGov	| Specifies the shared access signature token which provides access to the base artifacts location. |
 | cloudConnectorFQDN	| Specify FQDN of CloudConnector VM for Example: cloudconnectorvm.domain.com. |
-
 | createMasterImage | Specify if you want the VDI to be created as master Image, Note: If this option is specified the VDI are not provisioned to DDC. | 
 | createClientVDI | Creates a Windows 10 [HUB] CBB Image, if your subscription is not part of Azure Enterprise Agreement, choose "false", the ARM Template will not create Windows 10 [HUB] CBB VM. | 
 | clientVDIPrivateIp |	Specifies an Unused Private IP Address to assign to VDI Client VM. |
